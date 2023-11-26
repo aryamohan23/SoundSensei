@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import Logo from '../components/logo';
 import axios from 'axios';
 import '../css/songview.css';
+import NavBar from "../components/navbar";
 import {BgLeft} from "../components/svg";
 import '../css/home.css';
 
@@ -45,7 +46,7 @@ const PlaylistsView = ({setAuthUrl}) => {
     } else {
         return (
             <div className={"flex flex-col"}>
-                <Logo/>
+                <NavBar/>
                 <div className={"flex flex-col items-center text-white my-gap page-body content"}>
                     <div className={"px-10 list-header my-gap"}>
                         Select a playlist to analyze:

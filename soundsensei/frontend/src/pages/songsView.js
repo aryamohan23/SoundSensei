@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import LoadingModal from '../components/loader';
 import '../css/songview.css';
+import NavBar from "../components/navbar";
 import axios from 'axios';
 import {BgLeft} from "../components/svg";
 import '../css/home.css';
@@ -58,7 +59,7 @@ const SongsView = () => {
         return (
             <div className={"flex flex-col wrapper"}>
                 <LoadingModal showModal = {analyzingPlaylist}/>
-                <Logo></Logo>
+                <NavBar/>
                 <div className={"flex flex-col items-center text-white my-gap page-body content"}>
                     <div className={"px-10 list-header my-gap"}>
                         Your current songs:

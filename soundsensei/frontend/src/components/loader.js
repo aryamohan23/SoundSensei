@@ -12,7 +12,7 @@ const LoadingModal = ({showModal}) => {
       {showModal && (
         <div style={styles.modal}>
           <div style={styles.modalContent}>
-            <h2 style={{padding: "5px"}}>Analyzing playlist...</h2>
+            <h2 style={{padding: "5px", fontFamily: 'Lexenda Peta'}}>Analyzing playlist...</h2>
             <div style={styles.loader}></div>
             {/* <button onClick={closeModal}>Close</button> */}
           </div>
