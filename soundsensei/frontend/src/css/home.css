@@ -1,0 +1,37 @@
+#home-container {
+    height: 100vh;
+    background: black;
+}
+#home-animation-top {
+    position: absolute;
+    top: 0;
+    left: -10%;
+    z-index: 5;
+}
+
+#home-animation-bottom {
+    position: absolute;
+    top: 100%;
+    left: 110%;
+    z-index: 5;
+}
+
+#home-upload-button {
+    width: 800px;
+    padding: 10px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 1.5rem;
+    letter-spacing: 0.25rem;
+}
+
+#home-logo-wrapper {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    align-content: space-between;
+    z-index: 10;
+}
+
