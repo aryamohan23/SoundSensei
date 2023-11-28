@@ -56,34 +56,16 @@ class AnalyticsService:
     def analyze_playlist(self,playlist_uri):
         print("Getting songs...")
         features_df, mean_dict = self.create_playlist_dataframe(playlist_uri)
-        print(features_df.head)
         print("Getting lyrics...")
         features_df = self.get_lyrics(features_df) ## Calls Genius API
-        print(features_df.head)
         print("Getting emotion/sentiment...")
-        # features_df = self.get_sentiment_emotion(features_df) ## Calls IBM Watson API
-
-
-        # Authenticator
-
-
-        # Applying the analysis to each song's lyrics
         features_df['analysis'] = features_df['song_lyrics'].dropna().apply(self.analyze_text_emotion_and_sentiment)
-
-        # print(features_df['analysis'].head())
-        # Apply the function to each row
         features_df[['sentiment', 'dominant_emotion']] = features_df['analysis'].apply(lambda x: pd.Series(self.extract_sentiment_and_emotion(x)))
-
-
         features_df = features_df[features_df['dominant_emotion'].notna()]
-       
-
-        # # Apply the function to each row
         emotion_columns = features_df['analysis'].apply(self.extract_emotions)
         features_df = pd.concat([features_df, emotion_columns], axis=1)
-        print("Result of sentiment analysis")
-        # Display the first few rows of the modified DataFrame
-        print(features_df[['sentiment', 'dominant_emotion','analysis']].head())
+        
+        features_df = self.get_toxic(features_df)
 
         # Save user's dataframe
         features_df.to_csv('service/Playlistfeatures.csv')
@@ -217,32 +199,92 @@ class AnalyticsService:
         artist_df.rename(columns={'name': 'artist'}, inplace=True)
 
         features_df = pd.concat([artist_df[["artist", "genres"]], features_df], axis="columns")
-        features_df = features_df[['artist','genres','name','popularity','preview_url','danceability','energy','key','loudness','mode','speechiness','acousticness','instrumentalness','liveness','valence','tempo','type','id','uri','track_href','analysis_url','duration_ms','time_signature']]
-        features_df = features_df.dropna().reset_index()
-        
-        feat = ['popularity','acousticness','danceability','energy','instrumentalness','loudness','speechiness','tempo','valence', 'liveness']
-        rename = ['Popularity','Acousticness','Danceability','Energy','Instrumentalness','Loudness','Speechiness','Tempo','Valence', 'Liveness']
-        features_df.rename(columns=dict(zip(feat, rename)), inplace=True)
-        
-        # Normalize loudness and tempo as they are on a different scale
-        mean_df = features_df
-        mean_df['Loudness'] = (mean_df['Loudness'] - mean_df['Loudness'].min()) / (mean_df['Loudness'].max() - mean_df['Loudness'].min())
-        mean_df['Tempo'] = (mean_df['Tempo'] - mean_df['Tempo'].min()) / (mean_df['Tempo'].max() - mean_df['Tempo'].min())
-        mean_df['Popularity'] = (mean_df['Popularity'] - mean_df['Popularity'].min()) / (mean_df['Popularity'].max() - mean_df['Popularity'].min())
+        features_df = features_df[['artist','genres','name','popularity','danceability','energy','loudness','speechiness','acousticness','instrumentalness','liveness','valence','tempo','duration_ms']]
 
-        mean_dict = mean_df[['Popularity',\
-                        'Danceability',\
-                        'Energy',\
-                        'Loudness',\
-                        'Speechiness',\
-                        'Acousticness',\
-                        'Instrumentalness',\
-                        'Liveness',\
-                        'Valence',\
-                        'Tempo']].describe().loc['mean'].to_dict()
+        # Mapping of old column names to new column names
+        column_mapping = {
+            'artist': 'Artist Names',
+            'genres': 'Artist(s) Genres',
+            'name': 'Song',
+            'popularity': 'Popularity',
+            'danceability': 'Danceability',
+            'energy': 'Energy',
+            'loudness': 'Loudness',
+            'speechiness': 'Speechiness',
+            'acousticness': 'Acousticness',
+            'instrumentalness': 'Instrumentalness',
+            'liveness': 'Liveness',
+            'valence': 'Valence',
+            'tempo': 'Tempo',
+            'duration_ms': 'Duration'  
+        }
+
+        # Renaming the columns
+        features_df.rename(columns=column_mapping, inplace=True)
+
+        # Extract unique artist names from the existing one-hot encoded DataFrame
+        unique_artists = [col.replace('Artist: ', '') for col in df.columns if col.startswith('Artist: ')]
+
+        # Initialize the columns in the new DataFrame
+        for artist in unique_artists:
+            features_df[f'Artist: {artist}'] = 0
+
+        # Set the appropriate column to 1 for each row in the new DataFrame
+        for index, row in features_df.iterrows():
+            artist_col = f'Artist: {row["Artist Names"]}'
+            if artist_col in features_df.columns:
+                features_df.at[index, artist_col] = 1
+
+        # Extract unique genres from the existing DataFrame
+        unique_genres = [col.replace('Genre: ', '') for col in df.columns if col.startswith('Genre: ')]
+
+        # Initialize the genre columns in the new DataFrame
+        for genre in unique_genres:
+            features_df[f'Genre: {genre}'] = 0
+
+        # Set the appropriate genre columns to 1 for each row in the new DataFrame
+        for index, row in features_df.iterrows():
+            if isinstance(row['Artist(s) Genres'], list):
+                for genre in row['Artist(s) Genres']:
+                    genre_col = f'Genre: {genre}'
+                    if genre_col in features_df.columns:
+                        features_df.at[index, genre_col] = 1
+        
+        # Normalize as they are on a different scale
+        mean_df = features_df
+        scaler = MinMaxScaler()
+        numerical_features = ['Popularity', 'Acousticness', 'Danceability', 'Energy', 'Instrumentalness', 'Liveness', 'Loudness', 'Speechiness', 'Tempo', 'Valence', 'Duration']
+        mean_df[numerical_features] = scaler.fit_transform(mean_df[numerical_features])
+        mean_dict = mean_df[numerical_features].describe().loc['mean'].to_dict()
         
         return features_df, mean_dict
         
+    def clean_lyrics(self, df_o, inplace=False):
+        if not inplace:
+            df = df_o.copy()
+        else:
+            df = df_o
+
+        df_na = df.isna()
+        for index, lyrics in enumerate(df['song_lyrics']):
+            if df_na.iloc[index]['song_lyrics']:
+                continue
+
+            rc = re.compile("^.*Contributor.*Lyrics")
+            s = rc.sub("", lyrics )
+            rc = re.compile("\[.*\]")
+            s = rc.sub("", s)
+            rc = re.compile("You might.*Embed$")
+            s = rc.sub( "", s)
+            rc = re.compile(r"\d*Embed$")
+            s = rc.sub("", s).split()
+
+            s = "".join([i+ " " for i in s])
+
+            df.at[index, "song_lyrics"] = s
+        if not inplace:
+            return df
+    
     def get_lyrics(self,features_df):
         client_id = 'P2X2ToEuw9IZjkhXbLVuagHi0CbbdvEm4mfnfA0xrJBIM4qb9qEVcTzisH8r_XEF'
         client_secret = '40gFIsLN-aN2B4_k0v12UGB15rcbCT7xH1lytCFL85yhrogOLQEcMyei0RNMyUbf-eIdOiqT2yUiOZbXShqzzA'
@@ -250,11 +292,11 @@ class AnalyticsService:
         # Making a song lyrics column
         features_df['song_lyrics'] = None
         # Querying all songs in the dataframe for lyrics
-        for index, song_name in enumerate(features_df['name']):
+        for index, song_name in enumerate(features_df['Song']):
             try:
                 genius = Genius(client_access_token) # Initialising the Genius API
                 last_idx = index
-                song = genius.search_song(features_df['name'].iloc[index], features_df['artist'].iloc[index])
+                song = genius.search_song(features_df['Song'].iloc[index], features_df['Artist Names'].iloc[index])
                 if song != None:
                     features_df.iloc[index, -1] = song.lyrics
             except:
@@ -264,21 +306,75 @@ class AnalyticsService:
                 time.sleep(120)
                 genius = Genius(client_access_token)
                 last_idx = index
-                song = genius.search_song(features_df['name'].iloc[index], features_df['artist'].iloc[index])
+                song = genius.search_song(features_df['Song'].iloc[index], features_df['Artist Names'].iloc[index])
                 if song != None:
                     features_df.iloc[index, -1] = song.lyrics
 
         # List of words to be removed from the lyrics, in lowercase
         remove_words = ['chorus', 'verse', 'pre-chorus', 'bridge', 'intro', 'outro', 'instrumental', 'hook', 'lyrics', 'contributors', 'Translations']
-        for name, artist in zip(features_df['name'], features_df['artist']):
+        for name, artist in zip(features_df['Song'], features_df['Artist Names']):
             remove_words.append(name)
             remove_words.append(artist)
         pattern = '|'.join(re.escape(word) for word in remove_words)
         pattern += r'|\b\d+\b|[^\w\s]'
         features_df['song_lyrics'] = features_df['song_lyrics'].str.replace(pattern, '', regex=True, case=False)
         
+        features_df = self.clean_lyrics(features_df)
+        
         return features_df
 
+    #determines toxicity characteristics of the lyrics in df_o
+    # if in place is true, columns will be added to df_o, else a new dataframe will be returned with the added rows
+    #if local is true, detoxify is used on the users cpu. if false, perspective api is called
+    def get_toxic(self, df_o, inplace=False, local=False):
+        p = PerspectiveAPI('AIzaSyAyP-nQY3uWDVvaqfF3SIULohtAsFMMgKA')
+        if not inplace:
+            df = df_o.copy()
+        else:
+            df = df_o
+
+        df['Toxicity'] = None #-7
+        df['Severe_Toxicity'] = None #-6
+        df['Obscene'] = None #-5
+        df['Identity_Attack'] = None #-4
+        df['Insult'] = None #-3
+        df['Threat'] = None #-2
+        df['Sexual_Explicit'] = None #-1
+
+        df_na = df.isna()
+        for index, lyrics in enumerate(df['song_lyrics']):
+            if df_na.iloc[index]['song_lyrics']:
+                continue
+
+            if local:
+                toxic_info = Detoxify('unbiased').predict(lyrics)
+            else:
+                categories = ['TOXICITY', 'SEVERE_TOXICITY', 'IDENTITY_ATTACK', 'INSULT', 'THREAT','OBSCENE','SEXUALLY_EXPLICIT']
+                try:
+                    toxic_info_upper = p.score(lyrics, categories)
+                    time.sleep(1.2)
+                except HTTPError as e:
+                    if e.code != 429:
+                        continue
+                    print("sleeping for 15 seconds")
+                    time.sleep(15)
+                    toxic_info_upper = p.score(lyrics, categories)
+
+                print(index, " done")
+                toxic_info = {}
+                toxic_info.update([(key.lower(), val) for key, val in toxic_info_upper.items()])
+                toxic_info["sexual_explicit"] = toxic_info.pop("sexually_explicit")
+
+            df.iloc[index, -1] = toxic_info['sexual_explicit']
+            df.iloc[index, -2] = toxic_info['threat']
+            df.iloc[index, -3] = toxic_info['insult']
+            df.iloc[index, -4] = toxic_info['identity_attack']
+            df.iloc[index, -5] = toxic_info['obscene']
+            df.iloc[index, -6] = toxic_info['severe_toxicity']
+            df.iloc[index, -7] = toxic_info['toxicity']
+        if not inplace:
+            return df
+    
     def analyze_text_emotion_and_sentiment(self,text):
         try:
             response = self.natural_language_understanding.analyze(
@@ -310,7 +406,6 @@ class AnalyticsService:
         except json.JSONDecodeError:
             # Return NaN for each emotion if parsing fails
             return pd.Series({'sadness': None, 'joy': None, 'fear': None, 'disgust': None, 'anger': None})
-
 
     def create_viz1(self,features_df, df):
         # Audio Profiles
@@ -389,10 +484,6 @@ class AnalyticsService:
         features_to_plot = ['Tempo', 'Danceability', 'Valence', 'Energy', 'Acousticness', 'Liveness', 'Loudness', 'Speechiness']
         data_features = features_df[features_to_plot]
 
-        # Normalize loudness and tempo as they are on a different scale
-        data_features['Loudness'] = (data_features['Loudness'] - data_features['Loudness'].min()) / (data_features['Loudness'].max() - data_features['Loudness'].min())
-        data_features['Tempo'] = (data_features['Tempo'] - data_features['Tempo'].min()) / (data_features['Tempo'].max() - data_features['Tempo'].min())
-
         plt.figure(figsize=(12, 7), facecolor='#181818')
 
         # Create a boxplot with the specified color settings and green outline for the boxes
@@ -425,13 +516,19 @@ class AnalyticsService:
     def create_viz3(self,features_df):
         #finds counts of genres for a playlist
         genres = {}
-        for row in features_df["genres"]:
+        for row in features_df["Artist(s) Genres"]:
             self.count_occurances(genres, row)
 
         genres_df = pd.Series(genres).to_frame("count")
 
         genres_df = genres_df.sort_values(by=["count"], ascending=False)[:5]
         genres_df = genres_df.reset_index()
+        
+        def to_camel_case(text):
+            words = text.split()
+            return ' '.join(word.capitalize() for word in words)
+
+        genres_df['index'] = [to_camel_case(idx) for idx in genres_df['index']]
 
         ## Setting the color and linewidth of the spines/borders
         mpl.rc('axes',edgecolor='white')
@@ -525,23 +622,3 @@ class AnalyticsService:
         
         return emotion_means
         
-# clientID = '2636792d4682444e801cdb705108eebf'
-# clientSecret = 'e7636e89f27a41dba25ee64db3b5c0dc'
-# scope = "playlist-read-private"
-# auth = SpotifyOAuth(client_id=clientID, client_secret=clientSecret, scope=scope, redirect_uri='http://example.com', open_browser=False)
-# sp = spotipy.Spotify(auth_manager=auth)
-# playlists = sp.current_user_playlists()
-
-# # Prints name of index and corresponding index
-# print("Your playlists are...")
-# print_playlist_names(playlists) 
-
-# # Select a playlist index from above output
-
-# idx = 0
-# print(f"Selected playlist index {idx}")
-# example_playlist_name = playlists["items"][idx]["name"]
-# example_playlist_uri = playlists["items"][idx]["uri"]
-
-# Playlist features used for viz and mean values in a dictionary that is used for default values of sliders
-
