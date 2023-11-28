@@ -11,9 +11,10 @@
 
 #home-animation-bottom {
     position: absolute;
-    top: 100%;
-    left: 110%;
+    right: -20%;
+    bottom: 0px;
     z-index: 5;
+    transform: rotate(180deg);
 }
 
 #home-upload-button {
@@ -33,5 +34,25 @@
     align-items: center;
     align-content: space-between;
     z-index: 10;
+}
+.form-group {
+    margin-bottom: 15px; /* Adjust spacing as needed */
+}
+
+.form-input, .form-textarea {
+    width: 100%; /* Make input take full width */
+    padding: 10px; /* Adjust padding as needed */
+    border: 1px solid #ccc; /* Style as needed */
+    border-radius: 4px; /* Style as needed */
+    color: #000;
+}
+
+.submit-button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    background-color: #007bff; /* Adjust the color as needed */
+    color: white;
+    cursor: pointer;
 }
 

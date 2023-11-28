@@ -15,8 +15,10 @@ function Slider ({ value, label, onChange }){
           <label>{label}</label>
       </div>
       <div className='slider-wrapper'onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} >
-        { hover &&<div>Value: {value}</div>}
-        <input className = "slider" type="range" min="-1" max="1" step="0.01" value={value} onChange={onChange} />
+        <div className="value-overlay">
+          {hover && <div>Value: {Number(value).toFixed(2)}</div>} 
+        </div>
+        <input className = "slider" type="range" min="0" max="1" step="0.01" value={Number(value)} onChange={onChange} />
       </div>
 
     </div>

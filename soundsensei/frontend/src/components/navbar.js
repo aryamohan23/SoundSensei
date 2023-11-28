@@ -16,10 +16,10 @@ const NavBar = () => {
                             <a onClick={() => {navigate('/')}} className="block py-1 px-2 text-gray-900 rounded navbar-style">Home</a>
                         </li>
                         <li className="md:mr-10"> 
-                            <a href="#" className="block py-1 px-2 text-gray-900 rounded navbar-style">About</a>
+                            <a onClick={() => {navigate('/about')}} className="block py-1 px-2 text-gray-900 rounded navbar-style">About</a>
                         </li>
                         <li>
-                            <a href="#" className="block py-1 px-2 text-gray-900 rounded navbar-style">Contact</a>
+                            <a onClick={() => {navigate('/contact')}} className="block py-1 px-2 text-gray-900 rounded navbar-style">Contact Us</a>
                         </li>
                     </ul>
                 </div>

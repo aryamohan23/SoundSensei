@@ -58,6 +58,10 @@ code {
   padding: 17px 128px;
 }
 
+.loader-class{
+  font-family: 'Lexend Peta';
+}
+
 @layer utilities {
   .rotate {
     animation: rotate 20s linear infinite;

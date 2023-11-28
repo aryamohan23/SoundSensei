@@ -14,7 +14,7 @@ const Home = () => {
                     <div id={"home-logo-wrapper"}>
                     <img src={logo} height={300} width={300} alt=""/>              
             
-                    <div className={"py-1.5 px-3 cursor-pointer bg-white text-black rounded-full"} id = {"home-upload-button"} onClick={() => {navigate("/playlists")}}>
+                    <div className={"py-1.5 px-3 cursor-pointer bg-white text-black rounded-full"} id = {"home-upload-button"} onClick={() => {navigate("/playlists")}} style={{fontFamily: 'Lexend Peta'}}>
                             Upload your Spotify Playlist
                     </div>
                 </div>

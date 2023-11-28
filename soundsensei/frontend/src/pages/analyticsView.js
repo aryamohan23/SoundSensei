@@ -4,6 +4,7 @@ import React, {useState} from 'react';
 import { useLocation } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import NavBar from "../components/navbar";
 import SliderColumn from '../components/slidercolumn';
 
 const AnalyticsView = () => {
@@ -27,31 +28,34 @@ const AnalyticsView = () => {
     }
 
     return (
-        <div className="plots-grid">
-            <div className="plot">
-                <h1>Arya Circle Plot</h1>
-                <img src={images[0].url} alt="Plot 1" />
-            </div>
-            <div className="plot">
-                <h1>Arya Box Plot</h1>
-                <img src={images[1].url} alt="Plot 2" />
-            </div>
-            <div className="plot">
-                <h1>Arya Bar Plot</h1>
-                <img src={images[2].url} alt="Plot 3" />
-            </div>
-            <div className="plot">
-                <h1>Arya Word Plot</h1>
-                <img src={images[3].url} alt="Plot 4" />
-            </div>
+        <div className={"flex flex-col"}>
+            <NavBar/>
+            <div className="plots-grid">
+                <div className="plot">
+                    <h1>Arya Circle Plot</h1>
+                    <img src={images[0].url} alt="Plot 1" />
+                </div>
+                <div className="plot">
+                    <h1>Arya Box Plot</h1>
+                    <img src={images[1].url} alt="Plot 2" />
+                </div>
+                <div className="plot">
+                    <h1>Arya Bar Plot</h1>
+                    <img src={images[2].url} alt="Plot 3" />
+                </div>
+                <div className="plot">
+                    <h1>Arya Word Plot</h1>
+                    <img src={images[3].url} alt="Plot 4" />
+                </div>
 
-            <div className="plot">
-                <h1>Arya Emotions Plot</h1>
-                <img src={images[4].url} alt="Plot 4" />
-            </div>
-            <SliderColumn audioFeatures = {audioFeatures} handleSliderChange = {handleSliderChange} />
-            <div className={"py-1.5 px-3 cursor-pointer bg-white text-black rounded-full"} id ={"recommend-songs-btn"} onClick={() => {getRecommendations()}}> 
-                        Recommend Songs
+                <div className="plot">
+                    <h1>Arya Emotions Plot</h1>
+                    <img src={images[4].url} alt="Plot 4" />
+                </div>
+                <SliderColumn audioFeatures = {audioFeatures} handleSliderChange = {handleSliderChange} />
+                <div className={"py-1.5 px-3 cursor-pointer bg-white text-black rounded-full"} id ={"recommend-songs-btn"} onClick={() => {getRecommendations()}}> 
+                            Recommend Songs
+                </div>
             </div>
         </div>
 

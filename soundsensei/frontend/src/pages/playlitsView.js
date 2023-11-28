@@ -1,58 +1,50 @@
-
-
-import {findAllByDisplayValue} from "@testing-library/react";
-import React, {useState, useEffect} from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Logo from '../components/logo';
 import axios from 'axios';
-import '../css/songview.css';
 import NavBar from "../components/navbar";
-import {BgLeft} from "../components/svg";
+import { BgLeft } from "../components/svg";
+import LoadingModal from '../components/loader'; // Ensure this path is correct
 import '../css/home.css';
 
-const PlaylistsView = ({setAuthUrl}) => {
-
-    const [playlist, setPlaylist] = useState([]);
-
+const PlaylistsView = ({ setAuthUrl }) => {
+    const [playlists, setPlaylists] = useState([]);
+    const [isLoading, setIsLoading] = useState(false); // State to track loading status
     const navigate = useNavigate();
 
-    // useEffect to call getPlaylist when the playlists array is empty
-    const getPlaylist = async () => {
-        let response = await axios.get('http://localhost:3000/playlist')
+    const getPlaylists = async () => {
+        setIsLoading(true); // Set loading to true
+        let response = await axios.get('http://localhost:3000/playlist');
         if(response && response.data && response.data.playlists){
-            setPlaylist(response.data.playlists)
-            // setCurrentPlaylist(response.data.playlists);
+            setPlaylists(response.data.playlists);
             setAuthUrl(null);
+        } else {
+            setAuthUrl(response.data.oauth_url);
         }
-        else
-            setAuthUrl(response.data.oauth_url)
-        
-    }
+        setIsLoading(false); // Set loading to false
+    };
 
     const handlePlaylistClick = (selectedPlaylist) => {
-        // Assuming setCurrentPlaylist is a function passed from the parent component to set the current playlist
         navigate('/songs', { state: { selectedPlaylist } });
     };
 
     useEffect(() => {
-        if (playlist.length === 0) {
-            getPlaylist();
+        if (playlists.length === 0) {
+            getPlaylists();
         }
-    }, [playlist]); // Dependencies array
+    }, [playlists]);
 
-    // Conditional rendering based on the playlists length
-    if (playlist.length === 0) {
-        return <div>Loading playlists...</div>;
+    if (isLoading) {
+        return <LoadingModal showModal={isLoading} />;
     } else {
         return (
             <div className={"flex flex-col"}>
-                <NavBar/>
+                <NavBar />
                 <div className={"flex flex-col items-center text-white my-gap page-body content"}>
                     <div className={"px-10 list-header my-gap"}>
                         Select a playlist to analyze:
                     </div>
                     <div className={"flex flex-col my-gap"} style={{width:"100%"}}>
-                        {playlist.map((playlistItem, i) => (
+                        {playlists.map((playlistItem, i) => (
                             <div key={i} className="song-item my-gap" onClick={() => handlePlaylistClick(playlistItem)} >
                                 <div className={"list-num"}>
                                     {(i + 1).toString().padStart(2, '0')}
@@ -64,15 +56,15 @@ const PlaylistsView = ({setAuthUrl}) => {
                         ))}
                     </div>
                 </div>
-                <div id = {"home-animation-top"}>
-                        <BgLeft />
-                    </div>
-                    <div id = {"home-animation-bottom"}>
-                        <BgLeft />
-                    </div>
+                <div id={"home-animation-top"}>
+                    <BgLeft />
+                </div>
+                <div id={"home-animation-bottom"}>
+                    <BgLeft />
+                </div>
             </div>
         );
     }
-}
+};
 
 export default PlaylistsView;
