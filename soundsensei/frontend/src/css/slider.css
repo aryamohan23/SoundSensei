@@ -5,6 +5,9 @@
     width: 65%;
   }
   
+  .slider-wrapper {
+    width: 100%;
+  }
   .slider-column input[type="range"] {
     width: 100%;
   }

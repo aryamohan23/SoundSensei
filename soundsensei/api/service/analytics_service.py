@@ -17,6 +17,7 @@ import scipy
 from copy import deepcopy
 from fuzzywuzzy import fuzz 
 from sklearn.preprocessing import MinMaxScaler, MultiLabelBinarizer
+from sklearn.metrics.pairwise import cosine_similarity
 from scipy.ndimage import gaussian_filter
 
 import matplotlib as mpl
@@ -40,6 +41,7 @@ from ibm_watson import NaturalLanguageUnderstandingV1
 from ibm_watson.natural_language_understanding_v1 import Features, EmotionOptions, SentimentOptions
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 import json
+from perspective import PerspectiveAPI
 from flask import jsonify
 
 class AnalyticsService:
@@ -54,8 +56,9 @@ class AnalyticsService:
         self.natural_language_understanding.set_service_url('https://api.au-syd.natural-language-understanding.watson.cloud.ibm.com/instances/bdcc8e4f-f930-4845-b8d1-2255f06fc7f4')
 
     def analyze_playlist(self,playlist_uri):
+        df = pd.read_csv('service/billboardOHE_lyrics.csv')
         print("Getting songs...")
-        features_df, mean_dict = self.create_playlist_dataframe(playlist_uri)
+        features_df, mean_dict = self.create_playlist_dataframe(playlist_uri,df)
         print("Getting lyrics...")
         features_df = self.get_lyrics(features_df) ## Calls Genius API
         print("Getting emotion/sentiment...")
@@ -70,7 +73,7 @@ class AnalyticsService:
         # Save user's dataframe
         features_df.to_csv('service/Playlistfeatures.csv')
         # Load in bigger dataset
-        df = pd.read_csv('service/billboardOHE_lyrics.csv')
+        
 
         ############ VISUALIZATION 1
         self.create_viz1(features_df, df)
@@ -106,6 +109,64 @@ class AnalyticsService:
                 {"url": "http://localhost:3000/analytics/audioaura/plot"}
             ],
             "audio_feature_means": mean_dict
+        })
+
+    def generate_recommendation(self):
+        df = pd.read_csv('service/billboardOHE_lyrics.csv')
+        
+        df = df.drop(columns=['analysis', 'dominant_emotion', 'Explicit', 'song_lyrics', 'Artist Fuzz Ratio', 'Rank', 'Year', 'URI','Album Name','Album Release Date','Artist(s) Genres'])
+  
+        sentiment_dummies = pd.get_dummies(df['sentiment'], prefix='sentiment')
+        # Concatenate the new columns with the original dataframe
+        df = pd.concat([df, sentiment_dummies], axis=1)
+
+        # Optionally, drop the original 'sentiment' column if it's no longer needed
+        df.drop('sentiment', axis=1, inplace=True)
+        df.to_csv('service/train_data.csv')
+        userdf = pd.read_csv('service/Playlistfeatures.csv', index_col=0)
+        
+        userdf = userdf.drop(columns=['analysis', 'dominant_emotion', 'song_lyrics', 'Song','Artist Names','Artist(s) Genres'])
+
+        # Initialize new one-hot encoded columns to 0
+        userdf['sentiment_neutral'] = 0
+        userdf['sentiment_positive'] = 0
+        userdf['sentiment_negative'] = 0
+
+        # One-hot encode the sentiment
+        for index, row in userdf.iterrows():
+            if row['sentiment'] == 'neutral':
+                userdf.at[index, 'sentiment_neutral'] = 1
+            elif row['sentiment'] == 'positive':
+                userdf.at[index, 'sentiment_positive'] = 1
+            elif row['sentiment'] == 'negative':
+                userdf.at[index, 'sentiment_negative'] = 1
+
+        # Optionally, drop the original 'sentiment' column if it's no longer needed
+        userdf.drop('sentiment', axis=1, inplace=True)
+        userdf.to_csv('service/train_user_data.csv')
+        df = df.dropna()
+        # Compute user profile
+
+        user_playlist = userdf
+        user_profile = np.array(user_playlist.mean(axis=0))
+
+        
+        # Calculate similarity
+        traindf = df.drop(columns=['Song', 'Artist Names'])
+        traindf = traindf.reindex(sorted(traindf.columns), axis=1)
+        user_playlist = user_playlist.reindex(sorted(user_playlist.columns), axis=1)
+
+        similarity = cosine_similarity(traindf, user_profile.reshape(1, -1))
+    
+        # Recommend songs
+        df['similarity'] = similarity
+        recommendations = df.sort_values(by='similarity', ascending=False)
+
+       
+
+        recommendations_for_user = recommendations["Song"].tolist()[0:10]
+        return jsonify({
+            "recommendations": recommendations_for_user
         })
 
     def path_effect_stroke(self,**kwargs):
@@ -168,7 +229,7 @@ class AnalyticsService:
         for _, i in enumerate(playlists['items']): # list of dictionaries
             print(_, i['name'])
         
-    def create_playlist_dataframe(self,example_playlist_uri):
+    def create_playlist_dataframe(self,example_playlist_uri,df):
         playlist = self.sp.playlist(example_playlist_uri)
         items = []
 

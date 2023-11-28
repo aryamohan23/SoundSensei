@@ -2,13 +2,15 @@
 import '../css/analytics.css'; // Import the CSS for styling
 import React, {useState} from 'react';
 import { useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import SliderColumn from '../components/slidercolumn';
 
 const AnalyticsView = () => {
     const location = useLocation();
     const [images, setImages] = useState(location.state.images);
     const [audioFeatures, setAudioFeatures] = useState(location.state.audioFeatures)
-
+    const navigate = useNavigate();
 
 
     const handleSliderChange = (label) => (event) => {
@@ -18,6 +20,11 @@ const AnalyticsView = () => {
             [label]: event.target.value
         }));
     };
+    const getRecommendations = async() => {
+        let response = await axios.get(`http://localhost:3000/playlist/recommend`);
+        console.log(response);
+        navigate('/recommend', { state: { songs: response.data.recommendations} });
+    }
 
     return (
         <div className="plots-grid">
@@ -43,7 +50,7 @@ const AnalyticsView = () => {
                 <img src={images[4].url} alt="Plot 4" />
             </div>
             <SliderColumn audioFeatures = {audioFeatures} handleSliderChange = {handleSliderChange} />
-            <div className={"py-1.5 px-3 cursor-pointer bg-white text-black rounded-full"} id ={"recommend-songs-btn"}> 
+            <div className={"py-1.5 px-3 cursor-pointer bg-white text-black rounded-full"} id ={"recommend-songs-btn"} onClick={() => {getRecommendations()}}> 
                         Recommend Songs
             </div>
         </div>

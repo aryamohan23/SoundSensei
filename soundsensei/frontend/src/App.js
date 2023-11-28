@@ -5,6 +5,7 @@ import Home from "./pages/home";
 import PlaylistsView from "./pages/playlitsView";
 import SongsView from "./pages/songsView";
 import AnalyticsView from './pages/analyticsView';
+import RecommenderView from './pages/recommenderView';
 
 function App() {
 
@@ -24,6 +25,7 @@ function App() {
                     <Route path="/playlists" element={<PlaylistsView setAuthUrl = {setAuthUrl}/>} />
                     <Route path="/songs" element={<SongsView/>} />
                     <Route path="/analytics" element={<AnalyticsView/>} />
+                    <Route path="/recommend" element={<RecommenderView/>} />
                 </Routes>
             </div>
     );

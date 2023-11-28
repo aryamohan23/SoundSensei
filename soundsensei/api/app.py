@@ -101,6 +101,21 @@ def analyzePlaylist():
         print(e)
         return f"An error occurred: {str(e)}", 500
 
+@app.route('/playlist/recommend', methods=['GET'])
+def generateRecommendation():
+    try:
+        # Fetch playlist details
+        f = open("database/db.txt", "r")
+        code = f.read()
+        token_info = auth.get_access_token(code)
+        sp = spotipy.Spotify(auth=token_info['access_token'])
+        analytics_service = AnalyticsService(sp)
+        recommendations = analytics_service.generate_recommendation()
+        return recommendations
+    except Exception as e:
+        print(e)
+        return f"An error occurred: {str(e)}", 500
+
     
 
 @app.route('/analytics/audio-profile/plot',methods=['GET'])
