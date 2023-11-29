@@ -37,8 +37,8 @@ app = Flask(__name__)
 CORS(app)
 
 # Your Spotify credentials
-clientID = '2636792d4682444e801cdb705108eebf'
-clientSecret = 'e7636e89f27a41dba25ee64db3b5c0dc'
+clientID = '8d29cf8d347641dcab869168e52e62e1'
+clientSecret = 'd5cc0f865d014b329ee7a362855d4ec9'
 scope = "playlist-read-private"
 auth_callback_uri = 'http://localhost:3000/callback'  # Make sure this is added to your Spotify app as a valid redirect URI
 auth = SpotifyOAuth(client_id=clientID, client_secret=clientSecret, scope=scope, redirect_uri=auth_callback_uri)
@@ -137,6 +137,10 @@ def serve_plot4():
 @app.route('/analytics/audioaura/plot',methods=['GET'])
 def serve_plot5():
     return send_from_directory('static', 'viz5_audioaura.png')
+
+@app.route('/analytics/vulgarity/plot',methods=['GET'])
+def serve_plot6():
+    return send_from_directory('static', 'viz6_vulgarity.png')
 
 @app.route('/callback')
 def spotify_callback():

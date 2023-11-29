@@ -1,6 +1,10 @@
 import pandas as pd
 from IPython.display import HTML
 import numpy as np
+from tensorflow.keras.models import load_model
+from tensorflow.keras.layers import Input, Dense
+from tensorflow.keras.models import Model
+from tensorflow.keras import regularizers
 import seaborn as sns
 import time
 import requests
@@ -19,6 +23,7 @@ from fuzzywuzzy import fuzz
 from sklearn.preprocessing import MinMaxScaler, MultiLabelBinarizer
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy.ndimage import gaussian_filter
+from matplotlib.ticker import PercentFormatter 
 
 import matplotlib as mpl
 mpl.use("Agg")
@@ -43,6 +48,7 @@ from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 import json
 from perspective import PerspectiveAPI
 from flask import jsonify
+from urllib.error import HTTPError
 
 class AnalyticsService:
 
@@ -91,6 +97,9 @@ class AnalyticsService:
         ############ VISUALIZATION 5
         emotion_means = self.create_viz5(features_df)
 
+        ############ VISUALIZATION 6
+        self.create_viz6(features_df[['Toxicity','Obscene','Identity_Attack','Insult','Threat','Sexual_Explicit']])
+
         # # Dominant emotion information
         emotion_means_dict = dict(emotion_means)
         # Calculate the total sum of the emotion values
@@ -106,27 +115,20 @@ class AnalyticsService:
                 {"url": "http://localhost:3000/analytics/audio-profile-box/plot"},
                 {"url": "http://localhost:3000/analytics/genres/plot"},
                 {"url": "http://localhost:3000/analytics/wordcloud/plot"},
-                {"url": "http://localhost:3000/analytics/audioaura/plot"}
+                {"url": "http://localhost:3000/analytics/audioaura/plot"},
+                {"url": "http://localhost:3000/analytics/vulgarity/plot"}
             ],
             "audio_feature_means": mean_dict
         })
 
-    def generate_recommendation(self):
-        df = pd.read_csv('service/billboardOHE_lyrics.csv')
-        
-        df = df.drop(columns=['analysis', 'dominant_emotion', 'Explicit', 'song_lyrics', 'Artist Fuzz Ratio', 'Rank', 'Year', 'URI','Album Name','Album Release Date','Artist(s) Genres'])
-  
-        sentiment_dummies = pd.get_dummies(df['sentiment'], prefix='sentiment')
-        # Concatenate the new columns with the original dataframe
-        df = pd.concat([df, sentiment_dummies], axis=1)
-
-        # Optionally, drop the original 'sentiment' column if it's no longer needed
-        df.drop('sentiment', axis=1, inplace=True)
-        df.to_csv('service/train_data.csv')
+    def generate_recommendation(use_custom_features=False, target_features=None, profanity_filter=0):
+        # Load data
+        df = pd.read_csv('service/train_data.csv')
+        df = df.dropna()
         userdf = pd.read_csv('service/Playlistfeatures.csv', index_col=0)
-        
-        userdf = userdf.drop(columns=['analysis', 'dominant_emotion', 'song_lyrics', 'Song','Artist Names','Artist(s) Genres'])
 
+        # Prepare user data
+        userdf = userdf.drop(columns=['analysis', 'dominant_emotion', 'song_lyrics', 'Song','Artist Names', 'Artist(s) Genres'])
         # Initialize new one-hot encoded columns to 0
         userdf['sentiment_neutral'] = 0
         userdf['sentiment_positive'] = 0
@@ -143,30 +145,72 @@ class AnalyticsService:
 
         # Optionally, drop the original 'sentiment' column if it's no longer needed
         userdf.drop('sentiment', axis=1, inplace=True)
+        userdf = userdf.dropna()
         userdf.to_csv('service/train_user_data.csv')
-        df = df.dropna()
+
         # Compute user profile
-
-        user_playlist = userdf
-        user_profile = np.array(user_playlist.mean(axis=0))
-
-        
-        # Calculate similarity
-        traindf = df.drop(columns=['Song', 'Artist Names'])
+        traindf = df.drop(columns=['Song', 'Artist Names', 'Artist(s) Genres'])
         traindf = traindf.reindex(sorted(traindf.columns), axis=1)
-        user_playlist = user_playlist.reindex(sorted(user_playlist.columns), axis=1)
+        userdf = userdf.reindex(sorted(userdf.columns), axis=1)
 
-        similarity = cosine_similarity(traindf, user_profile.reshape(1, -1))
-    
-        # Recommend songs
-        df['similarity'] = similarity
-        recommendations = df.sort_values(by='similarity', ascending=False)
+        if use_custom_features:
+            # Add feature distance to each song in df
+            for feature in target_features:
+                traindf[feature + '_distance'] = abs(traindf[feature] - target_features[feature])
 
-       
+            # Calculate combined feature distance
+            traindf['combined_feature_distance'] = traindf[[f'{feature}_distance' for feature in target_features]].sum(axis=1)
+   
+            # Apply profanity filter if enabled
+            if profanity_filter:
+                profanity_columns = ['Toxicity', 'Obscene', 'Identity_Attack', 'Insult', 'Threat', 'Sexual_Explicit']
+                traindf_filtered = traindf[~traindf[profanity_columns].ge(0.5).any(axis=1)]
+            # Calculate similarity
+            traindf_filtered = traindf_filtered.drop(columns=['Danceability_distance',	'Energy_distance', 'Instrumentalness_distance','Liveness_distance','Loudness_distance','Popularity_distance','Speechiness_distance','Tempo_distance','Valence_distance','combined_feature_distance', 'similarity', 'Acousticness_distance'])
+            traindf_filtered = traindf_filtered.reindex(sorted(traindf_filtered.columns), axis=1)
+            X_train = traindf_filtered.values.astype(np.float32) 
+            
+        else:
+            X_train = traindf.values.astype(np.float32)
 
-        recommendations_for_user = recommendations["Song"].tolist()[0:10]
+        X_user = userdf.values.astype(np.float32)
+        # Define the encoder architecture 
+        encoding_dim = 64  # The size of our encoded representations
+        input_song = Input(shape=(X_train.shape[1],))  # Adjust the shape based on your input features
+        encoded = Dense(encoding_dim, activation='relu', activity_regularizer=regularizers.l1(10e-5))(input_song)
+
+        # Re-create the encoder model
+        encoder = Model(input_song, encoded)
+
+        # Load the saved weights
+        encoder.load_weights('soundsensei/api/service/encoder_weights.h5')
+        
+        # Generate embeddings for train_data and train_user_data
+        train_data_embeddings = encoder.predict(X_train)
+        user_data_embeddings = encoder.predict(X_user)
+
+        # Average the embeddings for the user's playlist
+        user_playlist_embedding = np.mean(user_data_embeddings, axis=0).reshape(1, -1)
+
+        # Compute similarity between the averaged user playlist embedding and all song embeddings in train_data
+        similarity_scores = cosine_similarity(user_playlist_embedding, train_data_embeddings)
+
+        if use_custom_features:
+            traindf['combined_score'] = traindf['combined_feature_distance'] * -1 + similarity_scores.flatten()  # Adjust weights as necessary
+
+            # Get top 10 recommendations based on combined score
+            top_10_indices = traindf.sort_values(by='combined_score', ascending=False).head(10).index
+
+        else:
+            # Find the indices of the top 10 most similar songs
+            top_10_indices = similarity_scores.argsort()[0][-10:]
+
+        # Extract the recommended song names
+        recommended_songs = traindf.iloc[top_10_indices][['Song', 'Artist Names', 'Artist(s) Genres']]
+        recommended_songs['Artist'] = traindf['Artist Names'].apply(lambda x: x.strip("[,],'") if x else None)
+
         return jsonify({
-            "recommendations": recommendations_for_user
+            "recommendations": recommended_songs.to_dict(orient='records')
         })
 
     def path_effect_stroke(self,**kwargs):
@@ -347,9 +391,9 @@ class AnalyticsService:
             return df
     
     def get_lyrics(self,features_df):
-        client_id = 'P2X2ToEuw9IZjkhXbLVuagHi0CbbdvEm4mfnfA0xrJBIM4qb9qEVcTzisH8r_XEF'
-        client_secret = '40gFIsLN-aN2B4_k0v12UGB15rcbCT7xH1lytCFL85yhrogOLQEcMyei0RNMyUbf-eIdOiqT2yUiOZbXShqzzA'
-        client_access_token = 'M5zyzYLnzziJH4PsrmYQMUBFIvBNw1J9K4DAG0E-7caiPpzcY2q_Y1p1yAbk-iJr'
+        client_id = 'afaixXQGd2TNw0XgeCVvgfKfTFJMxVzWDLWui8u1COCTjeh7WM2LSWSYIYS7CZDN'
+        client_secret = 'UN-cUCsqu5JJBV7v92jgE3_0s6Ru_5FxrlJygWRufgN_LezVdnNY4XlYFFfZTQ-yMMf2jQaDEuL6qYs1VxWrMw'
+        client_access_token = 'bovKxxW-6PLBu5LgT_d-RXvIejYmnRNfCmfoDBFZgT6te-Ea8QtQ9K2ybxdd2Euq'
         # Making a song lyrics column
         features_df['song_lyrics'] = None
         # Querying all songs in the dataframe for lyrics
@@ -414,7 +458,8 @@ class AnalyticsService:
                 try:
                     toxic_info_upper = p.score(lyrics, categories)
                     time.sleep(1.2)
-                except HTTPError as e:
+                except Exception as e:
+                    print('An exception occured: ', str(e))
                     if e.code != 429:
                         continue
                     print("sleeping for 15 seconds")
@@ -682,4 +727,33 @@ class AnalyticsService:
         plt.savefig('static/viz5_audioaura.png',transparent=True, bbox_inches='tight')
         
         return emotion_means
+    
+    def create_viz6(self,features_df):
+        
+        features_df = features_df.applymap(lambda i: i >= 0.25)
+
+        fig, ax = plt.subplots(figsize=(10, 4), facecolor='#181818')
+        sns.histplot(data=features_df.melt(var_name='Content Type', value_name='Key'), y='Content Type', hue='Key',
+                stat="percent", multiple='fill', discrete=True, shrink=0.8,
+                palette=["grey", self.spotifyGreen], alpha=1, ax=ax, linewidth=0)
+
+        sns.despine()
+        sns.move_legend(ax, bbox_to_anchor=(1.01, 1.02), loc='upper left')
+        ax.xaxis.set_major_formatter(PercentFormatter(1))
+
+        for p in ax.patches:
+            h, w, x, y = p.get_height(), p.get_width(), p.get_x(), p.get_y()
+            if(w > .1):
+                text = f'{w * 100:0.2f} %'
+                ax.annotate(text=text, xy=(x + w / 2, y + h / 2), ha='center', va='center', color='black', size=10)
+
+        plt.xlabel("Proportion", color="white", fontsize=20, fontweight='bold',labelpad=20)
+        plt.ylabel("Features", color="white", fontsize=20, fontweight='bold',labelpad=20)
+        # plt.title(f"Proportion of songs above {thresh * 100:0.2f}% threshold", color='white', fontsize=24, fontweight='bold', pad=20)
+        plt.tight_layout()
+
+        plt.xticks(color='white',fontsize=14)
+        plt.yticks(color='white',fontsize=18)
+        ax.set_facecolor('#181818')
+        plt.savefig('static/viz6_vulgarity.png',transparent=True, bbox_inches='tight')
         

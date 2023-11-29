@@ -8,5 +8,5 @@ viz5_audioaura.png
 db.txt
 .DS_Store
 .ipynb_checkpoints/DVA_Project_Arya_Version-checkpoint.ipynb
-.gitignore
 analytics_service.cpython-311.pyc
+soundsensei/api/service/__pycache__/analytics_service.cpython-311.pyc

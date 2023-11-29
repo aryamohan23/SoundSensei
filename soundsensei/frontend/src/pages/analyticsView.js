@@ -32,26 +32,32 @@ const AnalyticsView = () => {
             <NavBar/>
             <div className="plots-grid">
                 <div className="plot">
-                    <h1>Arya Circle Plot</h1>
+                    <h1>Pizza Plot of Audio Features</h1>
                     <img src={images[0].url} alt="Plot 1" />
                 </div>
                 <div className="plot">
-                    <h1>Arya Box Plot</h1>
+                    <h1>Box Plot of Audio features</h1>
                     <img src={images[1].url} alt="Plot 2" />
                 </div>
                 <div className="plot">
-                    <h1>Arya Bar Plot</h1>
+                    <h1>Top Genres</h1>
                     <img src={images[2].url} alt="Plot 3" />
                 </div>
                 <div className="plot">
-                    <h1>Arya Word Plot</h1>
+                    <h1>Lyrics Wordcloud</h1>
                     <img src={images[3].url} alt="Plot 4" />
                 </div>
 
                 <div className="plot">
-                    <h1>Arya Emotions Plot</h1>
+                    <h1>Emotion Audio Aura</h1>
                     <img src={images[4].url} alt="Plot 4" />
                 </div>
+
+                <div className="plot">
+                    <h1>Proportion of vulgar songs above 25% threshold</h1>
+                    <img src={images[5].url} alt="Plot 5" />
+                </div>
+                <h1 style={{'fontFamily': 'Lexend Peta', fontSize: '2rem', marginBottom: '-3%'}}>Control your recommendations!</h1>
                 <SliderColumn audioFeatures = {audioFeatures} handleSliderChange = {handleSliderChange} />
                 <div className={"py-1.5 px-3 cursor-pointer bg-white text-black rounded-full"} id ={"recommend-songs-btn"} onClick={() => {getRecommendations()}}> 
                             Recommend Songs
