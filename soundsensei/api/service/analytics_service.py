@@ -121,9 +121,10 @@ class AnalyticsService:
             "audio_feature_means": mean_dict
         })
 
-    def generate_recommendation(use_custom_features=False, target_features=None, profanity_filter=0):
+    def generate_recommendation(self, use_custom_features=False, target_features=None, profanity_filter=0):
         # Load data
-        df = pd.read_csv('service/train_data.csv')
+        print('!!! target_features', target_features)
+        df = pd.read_csv('service/train_data.csv', index_col=0)
         df = df.dropna()
         userdf = pd.read_csv('service/Playlistfeatures.csv', index_col=0)
 
@@ -156,24 +157,27 @@ class AnalyticsService:
         if use_custom_features:
             # Add feature distance to each song in df
             for feature in target_features:
-                traindf[feature + '_distance'] = abs(traindf[feature] - target_features[feature])
+                traindf[feature + '_distance'] = abs(traindf[feature] - float(target_features[feature]))
 
             # Calculate combined feature distance
+            
             traindf['combined_feature_distance'] = traindf[[f'{feature}_distance' for feature in target_features]].sum(axis=1)
-   
+            
             # Apply profanity filter if enabled
             if profanity_filter:
                 profanity_columns = ['Toxicity', 'Obscene', 'Identity_Attack', 'Insult', 'Threat', 'Sexual_Explicit']
-                traindf_filtered = traindf[~traindf[profanity_columns].ge(0.5).any(axis=1)]
+                traindf = traindf[~traindf[profanity_columns].ge(0.5).any(axis=1)]
             # Calculate similarity
-            traindf_filtered = traindf_filtered.drop(columns=['Danceability_distance',	'Energy_distance', 'Instrumentalness_distance','Liveness_distance','Loudness_distance','Popularity_distance','Speechiness_distance','Tempo_distance','Valence_distance','combined_feature_distance', 'similarity', 'Acousticness_distance'])
-            traindf_filtered = traindf_filtered.reindex(sorted(traindf_filtered.columns), axis=1)
-            X_train = traindf_filtered.values.astype(np.float32) 
+            traindf_filter = traindf.drop(columns=['Danceability_distance','Energy_distance', 'Instrumentalness_distance','Liveness_distance','Loudness_distance','Popularity_distance','Speechiness_distance','Tempo_distance','Valence_distance','combined_feature_distance', 'Acousticness_distance'])
+            traindf_filter = traindf_filter.reindex(sorted(traindf_filter.columns), axis=1)
+            X_train = traindf_filter.values.astype(np.float32) 
             
         else:
             X_train = traindf.values.astype(np.float32)
 
         X_user = userdf.values.astype(np.float32)
+
+        
         # Define the encoder architecture 
         encoding_dim = 64  # The size of our encoded representations
         input_song = Input(shape=(X_train.shape[1],))  # Adjust the shape based on your input features
@@ -183,7 +187,7 @@ class AnalyticsService:
         encoder = Model(input_song, encoded)
 
         # Load the saved weights
-        encoder.load_weights('soundsensei/api/service/encoder_weights.h5')
+        encoder.load_weights('service/encoder_weights.h5')
         
         # Generate embeddings for train_data and train_user_data
         train_data_embeddings = encoder.predict(X_train)
@@ -194,23 +198,24 @@ class AnalyticsService:
 
         # Compute similarity between the averaged user playlist embedding and all song embeddings in train_data
         similarity_scores = cosine_similarity(user_playlist_embedding, train_data_embeddings)
-
+        
         if use_custom_features:
             traindf['combined_score'] = traindf['combined_feature_distance'] * -1 + similarity_scores.flatten()  # Adjust weights as necessary
-
             # Get top 10 recommendations based on combined score
             top_10_indices = traindf.sort_values(by='combined_score', ascending=False).head(10).index
-
         else:
             # Find the indices of the top 10 most similar songs
             top_10_indices = similarity_scores.argsort()[0][-10:]
-
+        
         # Extract the recommended song names
-        recommended_songs = traindf.iloc[top_10_indices][['Song', 'Artist Names', 'Artist(s) Genres']]
-        recommended_songs['Artist'] = traindf['Artist Names'].apply(lambda x: x.strip("[,],'") if x else None)
+        # recommended_songs = df.iloc[top_10_indices][['Song', 'Artist Names', 'Artist(s) Genres']]
+        # recommended_songs['Artist'] = df['Artist Names'].apply(lambda x: x.strip("[,],'") if x else None)
 
+        recommendations = df.iloc[top_10_indices]
+        recommendations_for_user = recommendations["Song"].tolist()[0:10]
+  
         return jsonify({
-            "recommendations": recommended_songs.to_dict(orient='records')
+            "recommendations": recommendations_for_user
         })
 
     def path_effect_stroke(self,**kwargs):
@@ -358,7 +363,7 @@ class AnalyticsService:
         # Normalize as they are on a different scale
         mean_df = features_df
         scaler = MinMaxScaler()
-        numerical_features = ['Popularity', 'Acousticness', 'Danceability', 'Energy', 'Instrumentalness', 'Liveness', 'Loudness', 'Speechiness', 'Tempo', 'Valence', 'Duration']
+        numerical_features = ['Popularity', 'Acousticness', 'Danceability', 'Energy', 'Instrumentalness', 'Liveness', 'Loudness', 'Speechiness', 'Tempo', 'Valence']
         mean_df[numerical_features] = scaler.fit_transform(mean_df[numerical_features])
         mean_dict = mean_df[numerical_features].describe().loc['mean'].to_dict()
         
@@ -428,9 +433,6 @@ class AnalyticsService:
         
         return features_df
 
-    #determines toxicity characteristics of the lyrics in df_o
-    # if in place is true, columns will be added to df_o, else a new dataframe will be returned with the added rows
-    #if local is true, detoxify is used on the users cpu. if false, perspective api is called
     def get_toxic(self, df_o, inplace=False, local=False):
         p = PerspectiveAPI('AIzaSyAyP-nQY3uWDVvaqfF3SIULohtAsFMMgKA')
         if not inplace:

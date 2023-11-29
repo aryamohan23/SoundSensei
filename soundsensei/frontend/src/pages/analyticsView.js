@@ -11,21 +11,31 @@ const AnalyticsView = () => {
     const location = useLocation();
     const [images, setImages] = useState(location.state.images);
     const [audioFeatures, setAudioFeatures] = useState(location.state.audioFeatures)
+    const [sliderChanged, setSliderChanged] = useState(false);
+
     const navigate = useNavigate();
+
+    const [profanityFilter, setProfanityFilter] = useState(false);
+
+    const handleProfanityToggle = () => {
+        setProfanityFilter(!profanityFilter);
+    };
 
 
     const handleSliderChange = (label) => (event) => {
         console.log(event);
+        setSliderChanged(true);
         setAudioFeatures(prevFeatures => ({
             ...prevFeatures,
             [label]: event.target.value
         }));
     };
     const getRecommendations = async() => {
-        let response = await axios.get(`http://localhost:3000/playlist/recommend`);
+        let response = await axios.post(`http://localhost:3000/playlist/recommend`, {'audio_features': audioFeatures, 'profanity': profanityFilter, 'slider_changed': sliderChanged});
         console.log(response);
         navigate('/recommend', { state: { songs: response.data.recommendations} });
     }
+
 
     return (
         <div className={"flex flex-col"}>
@@ -58,7 +68,7 @@ const AnalyticsView = () => {
                     <img src={images[5].url} alt="Plot 5" />
                 </div>
                 <h1 style={{'fontFamily': 'Lexend Peta', fontSize: '2rem', marginBottom: '-3%'}}>Control your recommendations!</h1>
-                <SliderColumn audioFeatures = {audioFeatures} handleSliderChange = {handleSliderChange} />
+                <SliderColumn audioFeatures = {audioFeatures} handleSliderChange = {handleSliderChange} profanityFilter = {profanityFilter} handleProfanityToggle = {handleProfanityToggle}/>
                 <div className={"py-1.5 px-3 cursor-pointer bg-white text-black rounded-full"} id ={"recommend-songs-btn"} onClick={() => {getRecommendations()}}> 
                             Recommend Songs
                 </div>

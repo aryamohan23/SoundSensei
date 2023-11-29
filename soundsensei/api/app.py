@@ -101,16 +101,21 @@ def analyzePlaylist():
         print(e)
         return f"An error occurred: {str(e)}", 500
 
-@app.route('/playlist/recommend', methods=['GET'])
+@app.route('/playlist/recommend', methods=['POST'])
 def generateRecommendation():
     try:
         # Fetch playlist details
+        request_data = json.loads(request.data)
+        audio_features = request_data['audio_features']
+        profanity = request_data['profanity']
+        slider_changed = request_data['slider_changed']
+        print('Slider Changed: ',slider_changed)
         f = open("database/db.txt", "r")
         code = f.read()
         token_info = auth.get_access_token(code)
         sp = spotipy.Spotify(auth=token_info['access_token'])
         analytics_service = AnalyticsService(sp)
-        recommendations = analytics_service.generate_recommendation()
+        recommendations = analytics_service.generate_recommendation(use_custom_features=slider_changed, target_features=audio_features, profanity_filter=profanity)
         return recommendations
     except Exception as e:
         print(e)

@@ -4,14 +4,8 @@ import '../css/slider.css'
 
 
 
-const SliderColumn = ({audioFeatures, handleSliderChange}) => {
+const SliderColumn = ({audioFeatures, handleSliderChange, profanityFilter, handleProfanityToggle}) => {
 
-  const [profanityFilter, setProfanityFilter] = useState(false);
-
-  const handleProfanityToggle = () => {
-      setProfanityFilter(!profanityFilter);
-  };
-  
   return (
     <div className="slider-column">
       {Object.keys(audioFeatures).map((label, index) => (
