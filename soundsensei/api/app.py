@@ -98,7 +98,6 @@ def analyzePlaylist():
         analysis_plots = analytics_service.analyze_playlist(playlist_uri)
         return analysis_plots
     except Exception as e:
-        print(e)
         return f"An error occurred: {str(e)}", 500
 
 @app.route('/playlist/recommend', methods=['POST'])

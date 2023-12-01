@@ -75,6 +75,7 @@ class AnalyticsService:
         features_df = pd.concat([features_df, emotion_columns], axis=1)
         
         features_df = self.get_toxic(features_df)
+        print(features_df.columns)
 
         # Save user's dataframe
         features_df.to_csv('service/Playlistfeatures.csv')
@@ -82,22 +83,28 @@ class AnalyticsService:
         
 
         ############ VISUALIZATION 1
+        print("Creating viz 1...")
         self.create_viz1(features_df, df)
 
         ############ VISUALIZATION 2
+        print("Creating viz 2...")
         self.create_viz2(features_df)
 
 
         ############ VISUALIZATION 3
+        print("Creating viz 3...")
         self.create_viz3(features_df)
 
         ############ VISUALIZATION 4
+        print("Creating viz 4...")
         self.create_viz4(features_df)
 
         ############ VISUALIZATION 5
+        print("Creating viz 5...")
         emotion_means = self.create_viz5(features_df)
 
         ############ VISUALIZATION 6
+        print("Creating viz 6...")
         self.create_viz6(features_df[['Toxicity','Obscene','Identity_Attack','Insult','Threat','Sexual_Explicit']])
 
         # # Dominant emotion information
@@ -123,7 +130,7 @@ class AnalyticsService:
 
     def generate_recommendation(self, use_custom_features=False, target_features=None, profanity_filter=0):
         # Load data
-        print('!!! target_features', target_features)
+        print('Target Features:', target_features)
         df = pd.read_csv('service/train_data.csv', index_col=0)
         df = df.dropna()
         userdf = pd.read_csv('service/Playlistfeatures.csv', index_col=0)
@@ -450,36 +457,40 @@ class AnalyticsService:
 
         df_na = df.isna()
         for index, lyrics in enumerate(df['song_lyrics']):
-            if df_na.iloc[index]['song_lyrics']:
+            try:
+                if df_na.iloc[index]['song_lyrics']:
+                    continue
+
+                if local:
+                    toxic_info = Detoxify('unbiased').predict(lyrics)
+                else:
+                    categories = ['TOXICITY', 'SEVERE_TOXICITY', 'IDENTITY_ATTACK', 'INSULT', 'THREAT','OBSCENE','SEXUALLY_EXPLICIT']
+                    try:
+                        toxic_info_upper = p.score(lyrics, categories)
+                        time.sleep(1)
+                    except Exception as e:
+                        print('An exception occured: ', str(e))
+                        if e.code != 429:
+                            continue
+                        print("sleeping for 15 seconds")
+                        time.sleep(15)
+                        toxic_info_upper = p.score(lyrics, categories)
+
+                    print(index, " done")
+                    toxic_info = {}
+                    toxic_info.update([(key.lower(), val) for key, val in toxic_info_upper.items()])
+                    toxic_info["sexual_explicit"] = toxic_info.pop("sexually_explicit")
+
+                df.iloc[index, -1] = toxic_info['sexual_explicit']
+                df.iloc[index, -2] = toxic_info['threat']
+                df.iloc[index, -3] = toxic_info['insult']
+                df.iloc[index, -4] = toxic_info['identity_attack']
+                df.iloc[index, -5] = toxic_info['obscene']
+                df.iloc[index, -6] = toxic_info['severe_toxicity']
+                df.iloc[index, -7] = toxic_info['toxicity']
+            except Exception as e:
+                print('An exception occured: ', str(e))
                 continue
-
-            if local:
-                toxic_info = Detoxify('unbiased').predict(lyrics)
-            else:
-                categories = ['TOXICITY', 'SEVERE_TOXICITY', 'IDENTITY_ATTACK', 'INSULT', 'THREAT','OBSCENE','SEXUALLY_EXPLICIT']
-                try:
-                    toxic_info_upper = p.score(lyrics, categories)
-                    time.sleep(1.2)
-                except Exception as e:
-                    print('An exception occured: ', str(e))
-                    if e.code != 429:
-                        continue
-                    print("sleeping for 15 seconds")
-                    time.sleep(15)
-                    toxic_info_upper = p.score(lyrics, categories)
-
-                print(index, " done")
-                toxic_info = {}
-                toxic_info.update([(key.lower(), val) for key, val in toxic_info_upper.items()])
-                toxic_info["sexual_explicit"] = toxic_info.pop("sexually_explicit")
-
-            df.iloc[index, -1] = toxic_info['sexual_explicit']
-            df.iloc[index, -2] = toxic_info['threat']
-            df.iloc[index, -3] = toxic_info['insult']
-            df.iloc[index, -4] = toxic_info['identity_attack']
-            df.iloc[index, -5] = toxic_info['obscene']
-            df.iloc[index, -6] = toxic_info['severe_toxicity']
-            df.iloc[index, -7] = toxic_info['toxicity']
         if not inplace:
             return df
     
@@ -555,17 +566,20 @@ class AnalyticsService:
 
         # Getting data for each artist
         artistData = features_df[featColumns]
-
+        
         # Setting artist as title
         # ax.set_title(top6Artists[idx].title(), pad=40,fontsize=24, color='w')
         # Calculating mean percentile ranks for each feature
         values = []
-        for idx in range(len(artistData)):
-            songFeats = list(artistData.loc[idx])
-            valuesSong = []
-            for x in range(len(featColumns)):
-                valuesSong.append(math.floor(scipy.stats.percentileofscore(df[featColumns[x]],songFeats[x])))
-            values.append(valuesSong)
+        try:
+            for idx in range(len(artistData)):
+                songFeats = list(artistData.loc[idx])
+                valuesSong = []
+                for x in range(len(featColumns)):
+                    valuesSong.append(math.floor(scipy.stats.percentileofscore(df[featColumns[x]],songFeats[x])))
+                values.append(valuesSong)
+        except Exception as e:
+            print("An exception in viz 1", str(e))
         if(len(values)>0):
             values = np.round(np.mean(values, axis=0)).astype(int)
         # Plotting the Pizza chart
@@ -585,7 +599,7 @@ class AnalyticsService:
                                                 zorder=3,
                                                 bbox=dict(edgecolor="w",boxstyle="round,pad=0.2", lw=2.5))
                         )
-
+        print('Saving viz 1...')
         plt.savefig('static/viz1_audio_profile.png',transparent=True,bbox_inches='tight')
         
     def create_viz2(self,features_df):
@@ -684,7 +698,9 @@ class AnalyticsService:
         plt.savefig('static/viz4_wordcloud.png',transparent=True,bbox_inches='tight')
 
     def create_viz5(self,features_df):
+        
         emotions = ['sadness', 'joy', 'fear', 'disgust', 'anger']
+
         emotion_means = features_df[emotions].mean()
         colors = ['#0d72ea', '#f72d93', '#d64000', '#088569', '#d64000']
         cmap = LinearSegmentedColormap.from_list("my_cmap", colors)
@@ -699,18 +715,13 @@ class AnalyticsService:
             score = emotion_means[emotion]
             x, y = coordinates[j]
             ax.scatter(x, y, s=score * 80000, alpha= 0.7, c=cmap(j / len(emotions)), edgecolors='none')
-
         ax.axis('off')
         plt.tight_layout()
         
         # Capture the figure as an image
         fig.canvas.draw()
         image_with_custom_legend = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-        print(image_with_custom_legend.shape)
-        # print("!!!!!!", fig.canvas.get_width_height()[::-1] + (3,))
-        #480000 
         image_with_custom_legend = image_with_custom_legend.reshape((200, 200, 3))
-        #image_with_custom_legend = image_with_custom_legend.reshape(fig.canvas.get_width_height()[::-1] + (3,))
 
         # Apply Gaussian blur to the image
         blurred_image_with_custom_legend = gaussian_filter(image_with_custom_legend, sigma=(30, 30, 0))
@@ -731,10 +742,12 @@ class AnalyticsService:
         return emotion_means
     
     def create_viz6(self,features_df):
-        
+        features_df = features_df.dropna()
+        print(features_df)
         features_df = features_df.applymap(lambda i: i >= 0.25)
 
         fig, ax = plt.subplots(figsize=(10, 4), facecolor='#181818')
+        print(features_df.melt(var_name='Content Type', value_name='Key'))
         sns.histplot(data=features_df.melt(var_name='Content Type', value_name='Key'), y='Content Type', hue='Key',
                 stat="percent", multiple='fill', discrete=True, shrink=0.8,
                 palette=["grey", self.spotifyGreen], alpha=1, ax=ax, linewidth=0)
