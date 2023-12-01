@@ -24,3 +24,7 @@ python app.py
 npm install
 npm start
 ```
+
+To see how to run and use the web application, please see this video: https://youtu.be/sHr-8_At3Y4 
+
+
