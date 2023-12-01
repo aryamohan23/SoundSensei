@@ -27,7 +27,7 @@ soundsensei <br>
        |----> service: Service scripts for data processing and analytics. <br>
        |&nbsp;&nbsp;&nbsp;&nbsp;|----> analytics_service.py: Includes functions for statistical analysis, data transformation, and generating recommendations.  <br>
        |&nbsp;&nbsp;&nbsp;&nbsp;|----> (other data files like train_data.csv) <br>
-       |----> app.py: Main Python script for running the API. Consists of the initialization of the web application instance, and route definitions for &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; API endpoints. This file acts as the dispatcher for incoming HTTP requests, directing them to the appropriate handling logic defined &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; elsewhere in the application. <br>
+       |----> app.py: Main Python script for running the API. Consists of the initialization of the web application instance, and route definitions for API endpoints. This file acts as the dispatcher for incoming HTTP requests, directing them to the appropriate handling logic defined elsewhere in the application. <br>
 
 
 ## Installation and Execution Requirements
